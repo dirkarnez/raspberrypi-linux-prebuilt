@@ -21,7 +21,7 @@ jobs:
            repository: raspberrypi/linux
            fetch-depth: 1
            ref: rpi-6.1.y
-           path: rpi-6.1.y
+#            path: rpi-6.1.y
            
       - run: |
           sudo apt-get update
@@ -54,23 +54,42 @@ jobs:
       - run: |
           sudo apt-get -y --no-install-recommends install gcc-aarch64-linux-gnu
           
-      - run: |
-          sudo apt-get clean && \
-          sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+#       - run: |
+#           sudo apt-get clean && \
+#           sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
           
-      - run: |
-          curl https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.12.10.tar.xz -L -O -J && \
-          tar -xf linux-5.12.10.tar.xz
+#       - run: |
+#           curl https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.12.10.tar.xz -L -O -J && \
+#           tar -xf linux-5.12.10.tar.xz
           
-      - run: |
-          cd linux-5.12.10 && \
-          cp ../.config .config && \
-          make olddefconfig  && \
-          make -j8
+#       - run: |
+#           cd linux-5.12.10 && \
+#           cp ../.config .config && \
+#           make olddefconfig  && \
+#           make -j8
+      - name: Build kernel
+        run: |
+          mkdir ${{github.workspace}}/build
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export DTS_SUBDIR=broadcom
+          export IMAGE=Image.gz
+          make O=${{github.workspace}}/build bcm2711_defconfig
+          scripts/config --file ${{github.workspace}}/build/.config --set-val CONFIG_WERROR y
+          make O=${{github.workspace}}/build -j ${{env.NUM_JOBS}} $IMAGE modules dtbs
+          mkdir -p ${{github.workspace}}/install/boot/overlays
+          make O=${{github.workspace}}/build INSTALL_MOD_PATH=${{github.workspace}}/install modules_install
+          cp ${{github.workspace}}/build/arch/${ARCH}/boot/dts/${DTS_SUBDIR}/*.dtb ${{github.workspace}}/install/boot/
+          cp ${{github.workspace}}/build/arch/${ARCH}/boot/dts/overlays/*.dtb* ${{github.workspace}}/install/boot/overlays/
+          cp ${{github.workspace}}/arch/${ARCH}/boot/dts/overlays/README ${{github.workspace}}/install/boot/overlays/
+          cp ${{github.workspace}}/build/arch/${ARCH}/boot/$IMAGE ${{github.workspace}}/install/boot/kernel8.img
           
+      - name: Tar build
+        run: tar -cvf bcm2711_arm64_build.tar -C ${{github.workspace}}/install .
+
       - name: Release prebuilt
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "linux-5.12.10/arch/x86_64/boot/bzImage"
+          artifacts: "bcm2711_arm64_build.tar"
           allowUpdates: true
           token: ${{ secrets.GITHUB_TOKEN }}
