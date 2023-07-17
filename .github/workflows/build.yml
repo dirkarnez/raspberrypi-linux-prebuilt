@@ -21,6 +21,7 @@ jobs:
            repository: raspberrypi/linux
            fetch-depth: 1
            ref: rpi-6.1.y
+           clean: true
 #            path: rpi-6.1.y
            
       - run: |
